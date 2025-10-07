@@ -12,21 +12,21 @@ pub fn build(b: *std.Build) void
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     // libsvc
-    const libdrvynvc = myAddStaticLibrary(b, "drvynvc", target, optimize, do_strip);
-    libdrvynvc.root_module.root_source_file = b.path("src/libdrvynvc.zig");
-    libdrvynvc.linkLibC();
-    libdrvynvc.addIncludePath(b.path("../common"));
-    libdrvynvc.addIncludePath(b.path("include"));
-    libdrvynvc.root_module.addImport("parse", b.createModule(.{
+    const libdrdynvc = myAddStaticLibrary(b, "drdynvc", target, optimize, do_strip);
+    libdrdynvc.root_module.root_source_file = b.path("src/libdrdynvc.zig");
+    libdrdynvc.linkLibC();
+    libdrdynvc.addIncludePath(b.path("../common"));
+    libdrdynvc.addIncludePath(b.path("include"));
+    libdrdynvc.root_module.addImport("parse", b.createModule(.{
         .root_source_file = b.path("../common/parse.zig"),
     }));
-    libdrvynvc.root_module.addImport("hexdump", b.createModule(.{
+    libdrdynvc.root_module.addImport("hexdump", b.createModule(.{
         .root_source_file = b.path("../common/hexdump.zig"),
     }));
-    libdrvynvc.root_module.addImport("strings", b.createModule(.{
+    libdrdynvc.root_module.addImport("strings", b.createModule(.{
         .root_source_file = b.path("../common/strings.zig"),
     }));
-    b.installArtifact(libdrvynvc);
+    b.installArtifact(libdrdynvc);
 }
 
 //*****************************************************************************
