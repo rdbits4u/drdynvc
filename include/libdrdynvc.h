@@ -15,6 +15,10 @@
 #define LIBDRDYNVC_ERROR_CAPABILITIES_RESPONSE  -8
 #define LIBDRDYNVC_ERROR_CREATE_REQUEST         -9
 #define LIBDRDYNVC_ERROR_CREATE_RESPONSE        -10
+#define LIBDRDYNVC_ERROR_CHANNEL_ID             -11
+#define LIBDRDYNVC_ERROR_DATA_FIRST             -12
+#define LIBDRDYNVC_ERROR_DATA                   -13
+#define LIBDRDYNVC_ERROR_CLOSE                  -14
 
 struct drdynvc_t
 {
@@ -28,6 +32,14 @@ struct drdynvc_t
     int (*create_request)(struct drdynvc_t* drdynvc, uint16_t channel_id,
                           uint32_t drdynvc_channel_id,
                           const char* drdynvc_channel_name);
+    int (*data_first)(struct drdynvc_t* drdynvc, uint16_t channel_id,
+                      uint32_t drdynvc_channel_id, uint32_t total_bytes,
+                      void* data, uint32_t bytes);
+    int (*data)(struct drdynvc_t* drdynvc, uint16_t channel_id,
+                uint32_t drdynvc_channel_id,
+                void* data, uint32_t bytes);
+    int (*close)(struct drdynvc_t* drdynvc, uint16_t channel_id,
+                 uint32_t drdynvc_channel_id);
     void* user;
 };
 
@@ -38,10 +50,18 @@ int drdynvc_delete(struct drdynvc_t* drdynvc);
 int drdynvc_process_data(struct drdynvc_t* drdynvc,
                          uint16_t channel_id,
                          void* data, uint32_t bytes);
-int drdynvc_capabilities_response(struct drdynvc_t* drdynvc,
-                                  uint16_t channel_id, uint16_t version);
-int drdynvc_create_response(struct drdynvc_t* drdynvc, uint16_t channel_id,
-                            uint32_t drdynvc_channel_id,
-                            int32_t creation_status);
+int drdynvc_send_capabilities_response(struct drdynvc_t* drdynvc,
+                                       uint16_t channel_id,
+                                       uint16_t version);
+int drdynvc_send_create_response(struct drdynvc_t* drdynvc,
+                                 uint16_t channel_id,
+                                 uint32_t drdynvc_channel_id,
+                                 int32_t creation_status);
+int drdynvc_send_data_first(struct drdynvc_t* drdynvc, uint16_t channel_id,
+                            uint32_t drdynvc_channel_id, uint32_t total_bytes,
+                            void* data, uint32_t bytes);
+int drdynvc_send_data(struct drdynvc_t* drdynvc, uint16_t channel_id,
+                      uint32_t drdynvc_channel_id,
+                      void* data, uint32_t bytes);
 
 #endif

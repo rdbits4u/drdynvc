@@ -75,9 +75,10 @@ export fn drdynvc_process_data(drdynvc: ?*c.drdynvc_t,
     return rv;
 }
 
-// int drdynvc_capabilities_response(struct drdynvc_t* drdynvc,
-//                                   uint16_t channel_id, uint16_t version);
-export fn drdynvc_capabilities_response(drdynvc: ?*c.drdynvc_t,
+// int drdynvc_send_capabilities_response(struct drdynvc_t* drdynvc,
+//                                        uint16_t channel_id,
+//                                        uint16_t version);
+export fn drdynvc_send_capabilities_response(drdynvc: ?*c.drdynvc_t,
         channel_id: u16, version: u16) c_int
 {
     var rv = c.LIBDRDYNVC_ERROR_CAPABILITIES_RESPONSE;
@@ -86,16 +87,17 @@ export fn drdynvc_capabilities_response(drdynvc: ?*c.drdynvc_t,
     {
         // cast c.drdynvc_t to drdynvc_priv.rdpc_priv_t
         const priv: *drdynvc_priv.drdynvc_priv_t = @ptrCast(adrdynvc);
-        rv = priv.capabilities_response(channel_id, version) catch
+        rv = priv.send_capabilities_response(channel_id, version) catch
                 return c.LIBDRDYNVC_ERROR_CAPABILITIES_RESPONSE;
     }
     return rv;
 }
 
-// int drdynvc_create_response(struct drdynvc_t* drdynvc, uint16_t channel_id,
-//                             uint32_t drdynvc_channel_id,
-//                             int32_t creation_status);
-export fn drdynvc_create_response(drdynvc: ?*c.drdynvc_t, channel_id: u16,
+// int drdynvc_send_create_response(struct drdynvc_t* drdynvc,
+//                                  uint16_t channel_id,
+//                                  uint32_t drdynvc_channel_id,
+//                                  int32_t creation_status);
+export fn drdynvc_send_create_response(drdynvc: ?*c.drdynvc_t, channel_id: u16,
         drdynvc_channel_id: u32, creation_status: i32) c_int
 {
     var rv = c.LIBDRDYNVC_ERROR_CREATE_RESPONSE;
@@ -104,7 +106,7 @@ export fn drdynvc_create_response(drdynvc: ?*c.drdynvc_t, channel_id: u16,
     {
         // cast c.drdynvc_t to drdynvc_priv.rdpc_priv_t
         const priv: *drdynvc_priv.drdynvc_priv_t = @ptrCast(adrdynvc);
-        rv = priv.create_response(channel_id, drdynvc_channel_id,
+        rv = priv.send_create_response(channel_id, drdynvc_channel_id,
                 creation_status) catch
                 return c.LIBDRDYNVC_ERROR_CREATE_RESPONSE;
     }
