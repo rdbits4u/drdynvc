@@ -9,46 +9,23 @@ pub const c = @cImport(
 
 const g_devel = false;
 
-const drdynvc_channel_t = struct
-{
-    s: *parse.parse_t,
-    total_bytes: usize = 0,
-};
-
-const map_t = std.AutoArrayHashMapUnmanaged(u32, *drdynvc_channel_t);
-
-const drdynvc_priv_sub_t = struct
-{
-    map: map_t,
-};
-
 pub const drdynvc_priv_t = extern struct
 {
     drdynvc: c.drdynvc_t = .{}, // must be first
     allocator: *const std.mem.Allocator,
-    sub: *drdynvc_priv_sub_t,
 
     //*************************************************************************
     pub fn create(allocator: *const std.mem.Allocator) !*drdynvc_priv_t
     {
         const priv: *drdynvc_priv_t = try allocator.create(drdynvc_priv_t);
         errdefer allocator.destroy(priv);
-        const sub = try allocator.create(drdynvc_priv_sub_t);
-        sub.* = .{.map = try map_t.init(allocator.*, &.{}, &.{})};
-        priv.* = .{.allocator = allocator, .sub = sub};
+        priv.* = .{.allocator = allocator};
         return priv;
     }
 
     //*************************************************************************
     pub fn delete(self: *drdynvc_priv_t) void
     {
-        for (self.sub.map.values()) |channel|
-        {
-            channel.s.delete();
-            self.allocator.destroy(channel);
-        }
-        self.sub.map.deinit(self.allocator.*);
-        self.allocator.destroy(self.sub);
         self.allocator.destroy(self);
     }
 
@@ -97,17 +74,6 @@ pub const drdynvc_priv_t = extern struct
         try self.logln(@src(), "cbId 0x{X} Pri 0x{X} Cmd 0x{X} " ++
                 "ChannelId 0x{X} ChannelName {s}",
                 .{cbId, Pri, Cmd, ChannelId, ChannelNameNT});
-    
-        // create map, delete old is any
-        if (self.sub.map.get(ChannelId)) |channel|
-        {
-            channel.s.delete();
-            self.allocator.destroy(channel);
-        }
-        const channel = try self.allocator.create(drdynvc_channel_t);
-        channel.* = .{.s = try parse.parse_t.create(self.allocator, 1024)};
-        try self.sub.map.put(self.allocator.*, ChannelId, channel);
-    
         if (self.drdynvc.create_request) |acreate_request|
         {
             return acreate_request(&self.drdynvc, channel_id,
@@ -130,17 +96,15 @@ pub const drdynvc_priv_t = extern struct
         try self.logln(@src(), "cbId 0x{X} Len 0x{X} Cmd 0x{X} " ++
                 "ChannelId 0x{X} Length {}",
                 .{cbId, Len, Cmd, ChannelId, Length});
-        if (self.sub.map.get(ChannelId)) |channel|
+        if (self.drdynvc.data_first) |adata_first|
         {
-            try channel.s.reset(Length);
             const rem = s.get_rem();
             try s.check_rem(rem);
-            try channel.s.check_rem(rem);
-            channel.s.out_u8_slice(s.in_u8_slice(rem));
-            channel.total_bytes = Length;
-            return c.LIBDRDYNVC_ERROR_NONE;
+            const slice = s.in_u8_slice(rem);
+            return adata_first(&self.drdynvc, channel_id, ChannelId,
+                    Length, slice.ptr, @intCast(slice.len));
         }
-        return c.LIBDRDYNVC_ERROR_DATA_FIRST;
+        return c.LIBDRDYNVC_ERROR_NONE;
     }
 
     //*************************************************************************
@@ -156,40 +120,15 @@ pub const drdynvc_priv_t = extern struct
         try self.logln(@src(), "cbId 0x{X} Sp 0x{X} Cmd 0x{X} " ++
                 "ChannelId 0x{X}",
                 .{cbId, Sp, Cmd, ChannelId});
-        if (self.sub.map.get(ChannelId)) |channel|
+        if (self.drdynvc.data) |adata|
         {
             const rem = s.get_rem();
             try s.check_rem(rem);
             const slice = s.in_u8_slice(rem);
-            if (channel.total_bytes > 0)
-            {
-                try channel.s.check_rem(rem);
-                channel.s.out_u8_slice(slice);
-                if (channel.s.offset >= channel.total_bytes)
-                {
-                    channel.total_bytes = 0;
-                    // got all
-                    if (self.drdynvc.data) |adata|
-                    {
-                        const out_slice = channel.s.get_out_slice();
-                        return adata(&self.drdynvc, channel_id,
-                                ChannelId, out_slice.ptr,
-                                @intCast(out_slice.len));
-                    }
-                }
-            }
-            else
-            {
-                // all fit in one
-                if (self.drdynvc.data) |adata|
-                {
-                    return adata(&self.drdynvc, channel_id,
-                            ChannelId, slice.ptr, @intCast(slice.len));
-                }
-            }
-            return c.LIBDRDYNVC_ERROR_NONE;
+            return adata(&self.drdynvc, channel_id, ChannelId,
+                    slice.ptr, @intCast(slice.len));
         }
-        return c.LIBDRDYNVC_ERROR_DATA;
+        return c.LIBDRDYNVC_ERROR_NONE;
     }
 
     //*************************************************************************
@@ -327,38 +266,76 @@ pub const drdynvc_priv_t = extern struct
         }
         return c.LIBDRDYNVC_ERROR_CAPABILITIES_RESPONSE;
     }
-    
+
     //*************************************************************************
     pub fn send_create_response(self: *drdynvc_priv_t, channel_id: u16,
             drdynvc_channel_id: u32, creation_status: i32) !c_int
     {
         const s = try parse.parse_t.create(self.allocator, 64);
         defer s.delete();
-        if (drdynvc_channel_id <= 0xFF)
-        {
-            try s.check_rem(2);
-            s.out_u8(0x10);
-            s.out_u8(@truncate(drdynvc_channel_id));
-        }
-        else if (drdynvc_channel_id <= 0xFFFF)
-        {
-            try s.check_rem(3);
-            s.out_u8(0x11);
-            s.out_u16_le(@truncate(drdynvc_channel_id));
-        }
-        else
-        {
-            try s.check_rem(5);
-            s.out_u8(0x12);
-            s.out_u32_le(drdynvc_channel_id);
-        }
+        try s.check_rem(1);
+        s.push_layer(1, 0); // header
+        const cbId = try write124(drdynvc_channel_id, s);
         try s.check_rem(4);
         s.out_i32_le(creation_status);
-        const slice = s.get_out_slice();
+        s.push_layer(0, 1); // save end
+        s.pop_layer(0);
+        s.out_u8((1 << 4) | cbId);
+        s.pop_layer(1); // back to end
+        const out_slice = s.get_out_slice();
         if (self.drdynvc.send_data) |asend_data|
         {
             return asend_data(&self.drdynvc, channel_id,
-                    slice.ptr, @truncate(slice.len));
+                    out_slice.ptr, @truncate(out_slice.len));
+        }
+        return c.LIBDRDYNVC_ERROR_CREATE_RESPONSE;
+    }
+
+    //*************************************************************************
+    pub fn send_slice_data_first(self: *drdynvc_priv_t, channel_id: u16,
+            drdynvc_channel_id: u32, total_bytes: u32, slice: []u8) !c_int
+    {
+        const s = try parse.parse_t.create(self.allocator, 2048);
+        defer s.delete();
+        try s.check_rem(1);
+        s.push_layer(1, 0); // header
+        const cbId = try write124(drdynvc_channel_id, s);
+        const Len = try write124(total_bytes, s);
+        try s.check_rem(slice.len);
+        s.out_u8_slice(slice);
+        s.push_layer(0, 1); // save end
+        s.pop_layer(0);
+        s.out_u8((2 << 4) | (Len << 2) | cbId);
+        s.pop_layer(1); // back to end
+        const out_slice = s.get_out_slice();
+        if (self.drdynvc.send_data) |asend_data|
+        {
+            return asend_data(&self.drdynvc, channel_id,
+                    out_slice.ptr, @truncate(out_slice.len));
+        }
+        return c.LIBDRDYNVC_ERROR_CREATE_RESPONSE;
+    }
+
+    //*************************************************************************
+    pub fn send_slice_data(self: *drdynvc_priv_t, channel_id: u16,
+            drdynvc_channel_id: u32, slice: []u8) !c_int
+    {
+        const s = try parse.parse_t.create(self.allocator, 2048);
+        defer s.delete();
+        try s.check_rem(1);
+        s.push_layer(1, 0); // header
+        const cbId = try write124(drdynvc_channel_id, s);
+        try s.check_rem(slice.len);
+        s.out_u8_slice(slice);
+        s.push_layer(0, 1); // save end
+        s.pop_layer(0);
+        s.out_u8((3 << 4) | cbId);
+        s.pop_layer(1); // back to end
+        const out_slice = s.get_out_slice();
+        if (self.drdynvc.send_data) |asend_data|
+        {
+            return asend_data(&self.drdynvc, channel_id,
+                    out_slice.ptr, @truncate(out_slice.len));
         }
         return c.LIBDRDYNVC_ERROR_CREATE_RESPONSE;
     }
@@ -387,6 +364,30 @@ fn read124(flags: u8, s: *parse.parse_t) !u32
     else
     {
         return error.InvalidParam;
+    }
+    return rv;
+}
+
+//*****************************************************************************
+fn write124(val: u32, s: *parse.parse_t) !u8
+{
+    var rv: u8 = 0x00;
+    if (val <= 0xFF)
+    {
+        try s.check_rem(1);
+        s.out_u8(@truncate(val));
+    }
+    else if (val <= 0xFFFF)
+    {
+        try s.check_rem(2);
+        rv = 0x01;
+        s.out_u16_le(@truncate(val));
+    }
+    else
+    {
+        try s.check_rem(4);
+        rv = 0x02;
+        s.out_u32_le(val);
     }
     return rv;
 }
