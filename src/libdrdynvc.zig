@@ -81,20 +81,20 @@ export fn drdynvc_process_data(drdynvc: ?*c.drdynvc_t,
 }
 
 //*****************************************************************************
-// int drdynvc_send_capabilities_response(struct drdynvc_t* drdynvc,
-//                                        uint16_t channel_id,
-//                                        uint16_t version);
-export fn drdynvc_send_capabilities_response(drdynvc: ?*c.drdynvc_t,
+// int drdynvc_send_cap_response(struct drdynvc_t* drdynvc,
+//                               uint16_t channel_id,
+//                               uint16_t version);
+export fn drdynvc_send_cap_response(drdynvc: ?*c.drdynvc_t,
         channel_id: u16, version: u16) c_int
 {
-    var rv = c.LIBDRDYNVC_ERROR_CAPABILITIES_RESPONSE;
+    var rv = c.LIBDRDYNVC_ERROR_CAP_RESPONSE;
     // check if drdynvc is nil
     if (drdynvc) |adrdynvc|
     {
         // cast c.drdynvc_t to drdynvc_priv.rdpc_priv_t
         const priv: *drdynvc_priv.drdynvc_priv_t = @ptrCast(adrdynvc);
-        rv = priv.send_capabilities_response(channel_id, version) catch
-                return c.LIBDRDYNVC_ERROR_CAPABILITIES_RESPONSE;
+        rv = priv.send_cap_response(channel_id, version) catch
+                return c.LIBDRDYNVC_ERROR_CAP_RESPONSE;
     }
     return rv;
 }

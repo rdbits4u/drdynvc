@@ -74,9 +74,9 @@ pub const drdynvc_priv_t = extern struct
         try self.logln(@src(), "cbId 0x{X} Pri 0x{X} Cmd 0x{X} " ++
                 "ChannelId 0x{X} ChannelName {s}",
                 .{cbId, Pri, Cmd, ChannelId, ChannelNameNT});
-        if (self.drdynvc.create_request) |acreate_request|
+        if (self.drdynvc.process_create_request) |aprocess_create_request|
         {
-            return acreate_request(&self.drdynvc, channel_id,
+            return aprocess_create_request(&self.drdynvc, channel_id,
                     ChannelId, ChannelName.ptr);
         }
         return c.LIBDRDYNVC_ERROR_NONE;
@@ -96,13 +96,13 @@ pub const drdynvc_priv_t = extern struct
         try self.logln(@src(), "cbId 0x{X} Len 0x{X} Cmd 0x{X} " ++
                 "ChannelId 0x{X} Length {}",
                 .{cbId, Len, Cmd, ChannelId, Length});
-        if (self.drdynvc.data_first) |adata_first|
+        if (self.drdynvc.process_data_first) |aprocess_data_first|
         {
             const rem = s.get_rem();
             try s.check_rem(rem);
             const slice = s.in_u8_slice(rem);
-            return adata_first(&self.drdynvc, channel_id, ChannelId,
-                    Length, slice.ptr, @intCast(slice.len));
+            return aprocess_data_first(&self.drdynvc, channel_id,
+                ChannelId, Length, slice.ptr, @intCast(slice.len));
         }
         return c.LIBDRDYNVC_ERROR_NONE;
     }
@@ -120,12 +120,12 @@ pub const drdynvc_priv_t = extern struct
         try self.logln(@src(), "cbId 0x{X} Sp 0x{X} Cmd 0x{X} " ++
                 "ChannelId 0x{X}",
                 .{cbId, Sp, Cmd, ChannelId});
-        if (self.drdynvc.data) |adata|
+        if (self.drdynvc.process_data) |aprocess_data|
         {
             const rem = s.get_rem();
             try s.check_rem(rem);
             const slice = s.in_u8_slice(rem);
-            return adata(&self.drdynvc, channel_id, ChannelId,
+            return aprocess_data(&self.drdynvc, channel_id, ChannelId,
                     slice.ptr, @intCast(slice.len));
         }
         return c.LIBDRDYNVC_ERROR_NONE;
@@ -144,15 +144,15 @@ pub const drdynvc_priv_t = extern struct
         try self.logln(@src(), "cbId 0x{X} Sp 0x{X} Cmd 0x{X} " ++
                 "ChannelId 0x{X}",
                 .{cbId, Sp, Cmd, ChannelId});
-        if (self.drdynvc.close) |aclose|
+        if (self.drdynvc.process_close) |aprocess_close|
         {
-            return aclose(&self.drdynvc, channel_id, ChannelId);
+            return aprocess_close(&self.drdynvc, channel_id, ChannelId);
         }
         return c.LIBDRDYNVC_ERROR_NONE;
     }
 
     //*************************************************************************
-    fn process_capabilities_request(self: *drdynvc_priv_t, channel_id: u16,
+    fn process_cap_request(self: *drdynvc_priv_t, channel_id: u16,
             header: u8, s: *parse.parse_t) !c_int
     {
         try self.logln(@src(), "", .{});
@@ -173,10 +173,10 @@ pub const drdynvc_priv_t = extern struct
                 "PriorityCharge3 0x{X}",
                 .{PriorityCharge0, PriorityCharge1,
                 PriorityCharge2, PriorityCharge3});
-        if (self.drdynvc.capabilities_request) |acapabilities_request|
+        if (self.drdynvc.process_cap_request) |aprocess_cap_request|
         {
-            return acapabilities_request(&self.drdynvc, channel_id, Version,
-                    PriorityCharge0, PriorityCharge1,
+            return aprocess_cap_request(&self.drdynvc, channel_id,
+                    Version, PriorityCharge0, PriorityCharge1,
                     PriorityCharge2, PriorityCharge3);
         }
         return c.LIBDRDYNVC_ERROR_NONE;
@@ -239,7 +239,7 @@ pub const drdynvc_priv_t = extern struct
             0x02 => self.process_data_first(channel_id, header, s),
             0x03 => self.process_data(channel_id, header, s),
             0x04 => self.process_close(channel_id, header, s),
-            0x05 => self.process_capabilities_request(channel_id, header, s),
+            0x05 => self.process_cap_request(channel_id, header, s),
             0x06 => self.process_data_first_compressed(channel_id, header, s),
             0x07 => self.process_data_compressed(channel_id, header, s),
             0x08 => self.process_soft_sync_request(channel_id, header, s),
@@ -249,7 +249,7 @@ pub const drdynvc_priv_t = extern struct
     }
 
     //*************************************************************************
-    pub fn send_capabilities_response(self: *drdynvc_priv_t, channel_id: u16,
+    pub fn send_cap_response(self: *drdynvc_priv_t, channel_id: u16,
             version: u16) !c_int
     {
         const s = try parse.parse_t.create(self.allocator, 64);
@@ -264,7 +264,7 @@ pub const drdynvc_priv_t = extern struct
             return asend_data(&self.drdynvc, channel_id,
                     slice.ptr, @truncate(slice.len));
         }
-        return c.LIBDRDYNVC_ERROR_CAPABILITIES_RESPONSE;
+        return c.LIBDRDYNVC_ERROR_CAP_RESPONSE;
     }
 
     //*************************************************************************
