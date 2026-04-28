@@ -14,9 +14,9 @@ pub fn build(b: *std.Build) void
     // libsvc
     const libdrdynvc = myAddStaticLibrary(b, "drdynvc", target, optimize, do_strip);
     libdrdynvc.root_module.root_source_file = b.path("src/libdrdynvc.zig");
-    libdrdynvc.linkLibC();
-    libdrdynvc.addIncludePath(b.path("../common"));
-    libdrdynvc.addIncludePath(b.path("include"));
+    myLinkLibC(libdrdynvc);
+    myAddIncludePath(libdrdynvc, b.path("../common"));
+    myAddIncludePath(libdrdynvc, b.path("include"));
     libdrdynvc.root_module.addImport("parse", b.createModule(.{
         .root_source_file = b.path("../common/parse.zig"),
     }));
@@ -27,6 +27,32 @@ pub fn build(b: *std.Build) void
         .root_source_file = b.path("../common/strings.zig"),
     }));
     b.installArtifact(libdrdynvc);
+}
+
+//*****************************************************************************
+fn myLinkLibC(compile: *std.Build.Step.Compile) void
+{
+    if ((builtin.zig_version.major == 0) and (builtin.zig_version.minor < 16))
+    {
+        compile.linkLibC();
+    }
+    else
+    {
+        compile.root_module.link_libc = true;
+    }
+}
+
+//*****************************************************************************
+fn myAddIncludePath(compile: *std.Build.Step.Compile, lazy_path: std.Build.LazyPath) void
+{
+    if ((builtin.zig_version.major == 0) and (builtin.zig_version.minor < 16))
+    {
+        compile.addIncludePath(lazy_path);
+    }
+    else
+    {
+        compile.root_module.addIncludePath(lazy_path);
+    }
 }
 
 //*****************************************************************************
